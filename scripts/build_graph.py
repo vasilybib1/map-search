@@ -1,6 +1,11 @@
 """
-Download the Vancouver greater area road network via OSMnx
-and export it as a JSON graph for the frontend pathfinding algorithms.
+Download road networks via OSMnx and export as JSON graphs
+for the frontend pathfinding algorithms.
+
+Usage:
+    python build_graph.py vancouver
+    python build_graph.py toronto
+    python build_graph.py all
 
 Output format (matches PLAN.md graph interfaces):
 {
@@ -18,41 +23,48 @@ import os
 import sys
 import osmnx as ox
 
-# Vancouver greater area bounding box (matches the PMTiles extract)
-BBOX_NORTH = 49.38
-BBOX_SOUTH = 49.00
-BBOX_EAST = -122.50
-BBOX_WEST = -123.28
-
 OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "..", "backend", "src", "data")
-OUTPUT_FILE = os.path.join(OUTPUT_DIR, "vancouver-graph.json")
+
+CITIES = {
+    "vancouver": {
+        "name": "Vancouver",
+        "bbox_north": 49.38,
+        "bbox_south": 49.00,
+        "bbox_east": -122.50,
+        "bbox_west": -123.28,
+    },
+    "toronto": {
+        "name": "Toronto",
+        "bbox_north": 43.85,
+        "bbox_south": 43.55,
+        "bbox_east": -79.10,
+        "bbox_west": -79.65,
+    },
+}
 
 
-def main():
-    print("Downloading Vancouver road network from OSM...")
-    # OSMnx v2 bbox order: (west, south, east, north)
+def build_graph(city_id: str):
+    cfg = CITIES[city_id]
+    output_file = os.path.join(OUTPUT_DIR, f"{city_id}-graph.json")
+
+    print(f"Downloading {cfg['name']} road network from OSM...")
     G = ox.graph_from_bbox(
-        bbox=(BBOX_WEST, BBOX_SOUTH, BBOX_EAST, BBOX_NORTH),
+        bbox=(cfg["bbox_west"], cfg["bbox_south"], cfg["bbox_east"], cfg["bbox_north"]),
         network_type="all",
         simplify=True,
         retain_all=True,
     )
 
     print(f"Raw graph: {G.number_of_nodes()} nodes, {G.number_of_edges()} edges")
-
-    # OSMnx already computes edge lengths (in meters) during simplification.
-    # Just ensure all edges have a length attribute via great-circle distance.
     G = ox.distance.add_edge_lengths(G)
 
     nodes = {}
     edges = {}
 
-    # Build edge records first so we can attach edge IDs to neighbor lists
     for u, v, key, data in G.edges(keys=True, data=True):
         edge_id = f"{u}-{v}-{key}"
-        weight = data.get("length", 0.0)  # meters
+        weight = data.get("length", 0.0)
 
-        # Edge geometry: use the 'geometry' linestring if available, else straight line
         if "geometry" in data:
             coords = list(data["geometry"].coords)
             geometry = [{"lat": round(c[1], 5), "lng": round(c[0], 5)} for c in coords]
@@ -72,7 +84,6 @@ def main():
             "geometry": geometry,
         }
 
-    # Build node records
     for node_id, data in G.nodes(data=True):
         neighbor_edge_ids = []
         for u, v, key in G.out_edges(node_id, keys=True):
@@ -90,12 +101,25 @@ def main():
     graph_data = {"nodes": nodes, "edges": edges}
 
     os.makedirs(OUTPUT_DIR, exist_ok=True)
-    with open(OUTPUT_FILE, "w") as f:
+    with open(output_file, "w") as f:
         json.dump(graph_data, f)
 
-    file_size_mb = os.path.getsize(OUTPUT_FILE) / (1024 * 1024)
-    print(f"Wrote {OUTPUT_FILE}")
+    file_size_mb = os.path.getsize(output_file) / (1024 * 1024)
+    print(f"Wrote {output_file}")
     print(f"  {len(nodes)} nodes, {len(edges)} edges, {file_size_mb:.1f} MB")
+
+
+def main():
+    target = sys.argv[1] if len(sys.argv) > 1 else "all"
+
+    if target == "all":
+        for city_id in CITIES:
+            build_graph(city_id)
+    elif target in CITIES:
+        build_graph(target)
+    else:
+        print(f"Unknown city: {target}. Available: {', '.join(CITIES.keys())}, all")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
