@@ -53,6 +53,7 @@ function pointFeature(pos: LatLng): GeoJSON.FeatureCollection {
 export class MapController {
   private map: maplibregl.Map | null = null;
   private shiftClickHandlers: Array<(point: LatLng) => void> = [];
+  private explorationBatches: string[] = [];
 
   init(
     container: HTMLElement,
@@ -146,58 +147,66 @@ export class MapController {
 
   // --- Highlight layers for visualization ---
 
-  private ensureHighlightLayers(): void {
-    if (!this.map || !this.map.isStyleLoaded()) return;
-
-    if (!this.map.getSource("exploration")) {
-      this.map.addSource("exploration", { type: "geojson", data: emptyPoint() });
-      // Insert below marker layers so markers stay on top
-      const before = this.map.getLayer("origin-click-layer") ? "origin-click-layer" : undefined;
-      this.map.addLayer({
-        id: "exploration-layer",
-        type: "line",
-        source: "exploration",
-        paint: {
-          "line-color": ["get", "color"],
-          "line-width": 2,
-          "line-opacity": 0.8,
-        },
-      }, before);
-    }
-
-    if (!this.map.getSource("path")) {
-      this.map.addSource("path", { type: "geojson", data: emptyPoint() });
-      const before = this.map.getLayer("origin-click-layer") ? "origin-click-layer" : undefined;
-      this.map.addLayer({
-        id: "path-layer",
-        type: "line",
-        source: "path",
-        paint: {
-          "line-color": ["get", "color"],
-          "line-width": 4,
-          "line-opacity": 1,
-        },
-      }, before);
-    }
+  private markerBeforeId(): string | undefined {
+    if (!this.map) return undefined;
+    return this.map.getLayer("origin-click-layer") ? "origin-click-layer" : undefined;
   }
 
-  setExplorationEdges(features: GeoJSON.Feature[]): void {
-    if (!this.map) return;
-    this.ensureHighlightLayers();
-    const src = this.map.getSource("exploration") as maplibregl.GeoJSONSource | undefined;
-    src?.setData({ type: "FeatureCollection", features });
+  addExplorationBatch(features: GeoJSON.Feature[]): void {
+    if (!this.map || features.length === 0) return;
+
+    const id = `exploration-${this.explorationBatches.length}`;
+    this.map.addSource(id, {
+      type: "geojson",
+      data: { type: "FeatureCollection", features },
+    });
+    this.map.addLayer({
+      id: `${id}-layer`,
+      type: "line",
+      source: id,
+      paint: {
+        "line-color": "hsl(0, 0%, 45%)",
+        "line-width": 2,
+        "line-opacity": 0.8,
+      },
+    }, this.markerBeforeId());
+    this.explorationBatches.push(id);
   }
 
   setPathEdges(features: GeoJSON.Feature[]): void {
-    if (!this.map) return;
-    this.ensureHighlightLayers();
-    const src = this.map.getSource("path") as maplibregl.GeoJSONSource | undefined;
-    src?.setData({ type: "FeatureCollection", features });
+    if (!this.map || features.length === 0) return;
+
+    // Remove stale path layer/source if present
+    if (this.map.getLayer("path-layer")) this.map.removeLayer("path-layer");
+    if (this.map.getSource("path")) this.map.removeSource("path");
+
+    this.map.addSource("path", {
+      type: "geojson",
+      data: { type: "FeatureCollection", features },
+    });
+    this.map.addLayer({
+      id: "path-layer",
+      type: "line",
+      source: "path",
+      paint: {
+        "line-color": ["get", "color"],
+        "line-width": 4,
+        "line-opacity": 1,
+      },
+    });
   }
 
   clearHighlights(): void {
-    this.setExplorationEdges([]);
-    this.setPathEdges([]);
+    if (!this.map) return;
+
+    for (const id of this.explorationBatches) {
+      if (this.map.getLayer(`${id}-layer`)) this.map.removeLayer(`${id}-layer`);
+      if (this.map.getSource(id)) this.map.removeSource(id);
+    }
+    this.explorationBatches = [];
+
+    if (this.map.getLayer("path-layer")) this.map.removeLayer("path-layer");
+    if (this.map.getSource("path")) this.map.removeSource("path");
   }
 
   onShiftClick(cb: (point: LatLng) => void): void {
