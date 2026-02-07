@@ -1,5 +1,7 @@
 export type CityId = "vancouver" | "toronto" | "new-york";
 export type AlgorithmType = "astar" | "bfs" | "dfs";
+export type NodeId = string;
+export type EdgeId = string;
 
 export interface LatLng {
   lat: number;

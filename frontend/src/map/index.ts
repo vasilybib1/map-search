@@ -23,9 +23,37 @@ function ensureProtocol(): void {
   protocolRegistered = true;
 }
 
+type MarkerRole = "origin" | "destination";
+
+const MARKER_COLORS: Record<MarkerRole, { click: string; node: string }> = {
+  origin:      { click: "#22d3ee", node: "#06b6d4" },
+  destination: { click: "#f472b6", node: "#ec4899" },
+};
+
+const CLICK_RADIUS = 8;
+const NODE_RADIUS = 6;
+
+function emptyPoint(): GeoJSON.FeatureCollection {
+  return { type: "FeatureCollection", features: [] };
+}
+
+function pointFeature(pos: LatLng): GeoJSON.FeatureCollection {
+  return {
+    type: "FeatureCollection",
+    features: [
+      {
+        type: "Feature",
+        geometry: { type: "Point", coordinates: [pos.lng, pos.lat] },
+        properties: {},
+      },
+    ],
+  };
+}
+
 export class MapController {
   private map: maplibregl.Map | null = null;
-  private clickHandlers: Array<(point: LatLng) => void> = [];
+  private shiftClickHandlers: Array<(point: LatLng) => void> = [];
+  private markersReady = false;
 
   init(
     container: HTMLElement,
@@ -40,7 +68,6 @@ export class MapController {
 
     const tilesUrl = `/api/cities/${cityId}/tiles`;
     const style = buildDarkStyle(tilesUrl);
-
     const padded = padBounds(bounds, 0.5);
 
     this.map = new maplibregl.Map({
@@ -55,14 +82,74 @@ export class MapController {
         [padded.east, padded.north],
       ],
       attributionControl: false,
+      boxZoom: false,
+    });
+
+    this.map.on("load", () => {
+      this.addMarkerLayers();
     });
 
     this.map.on("click", (e) => {
+      if (!e.originalEvent.shiftKey) return;
       const point: LatLng = { lat: e.lngLat.lat, lng: e.lngLat.lng };
-      for (const handler of this.clickHandlers) {
+      for (const handler of this.shiftClickHandlers) {
         handler(point);
       }
     });
+  }
+
+  private addMarkerLayers(): void {
+    if (!this.map) return;
+
+    for (const role of ["origin", "destination"] as MarkerRole[]) {
+      const colors = MARKER_COLORS[role];
+
+      this.map.addSource(`${role}-click`, { type: "geojson", data: emptyPoint() });
+      this.map.addSource(`${role}-node`, { type: "geojson", data: emptyPoint() });
+
+      this.map.addLayer({
+        id: `${role}-click-layer`,
+        type: "circle",
+        source: `${role}-click`,
+        paint: {
+          "circle-radius": CLICK_RADIUS,
+          "circle-color": colors.click,
+          "circle-opacity": 0.5,
+        },
+      });
+
+      this.map.addLayer({
+        id: `${role}-node-layer`,
+        type: "circle",
+        source: `${role}-node`,
+        paint: {
+          "circle-radius": NODE_RADIUS,
+          "circle-color": colors.node,
+          "circle-opacity": 0.9,
+        },
+      });
+    }
+
+    this.markersReady = true;
+  }
+
+  setMarker(role: MarkerRole, clickPos: LatLng | null, nodePos: LatLng | null): void {
+    if (!this.map || !this.markersReady) return;
+
+    const clickSrc = this.map.getSource(`${role}-click`) as maplibregl.GeoJSONSource | undefined;
+    const nodeSrc = this.map.getSource(`${role}-node`) as maplibregl.GeoJSONSource | undefined;
+
+    clickSrc?.setData(clickPos ? pointFeature(clickPos) : emptyPoint());
+    nodeSrc?.setData(nodePos ? pointFeature(nodePos) : emptyPoint());
+  }
+
+  clearMarkers(): void {
+    this.setMarker("origin", null, null);
+    this.setMarker("destination", null, null);
+  }
+
+  onShiftClick(cb: (point: LatLng) => void): void {
+    this.shiftClickHandlers.push(cb);
   }
 
   setCity(cityId: CityId, center: LatLng, zoom: number, bounds: Bounds, minZoom: number, maxZoom: number): void {
@@ -70,6 +157,7 @@ export class MapController {
 
     const tilesUrl = `/api/cities/${cityId}/tiles`;
     const style = buildDarkStyle(tilesUrl);
+    this.markersReady = false;
     this.map.setStyle(style);
     const padded = padBounds(bounds, 0.5);
     this.map.setMinZoom(minZoom);
@@ -80,10 +168,10 @@ export class MapController {
     ]);
     this.map.setCenter([center.lng, center.lat]);
     this.map.setZoom(zoom);
-  }
 
-  onClick(cb: (point: LatLng) => void): void {
-    this.clickHandlers.push(cb);
+    this.map.once("style.load", () => {
+      this.addMarkerLayers();
+    });
   }
 
   getMap(): maplibregl.Map | null {
@@ -93,6 +181,6 @@ export class MapController {
   destroy(): void {
     this.map?.remove();
     this.map = null;
-    this.clickHandlers = [];
+    this.shiftClickHandlers = [];
   }
 }
