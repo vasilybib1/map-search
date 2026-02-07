@@ -31,20 +31,55 @@ export function parseGraph(raw: unknown): RoadGraph {
   return { nodes, edges };
 }
 
-export function nearestNode(graph: RoadGraph, point: LatLng): GraphNode {
-  let best: GraphNode | null = null;
-  let bestDist = Infinity;
+export interface SnapResult {
+  node: GraphNode;
+  edge: GraphEdge;
+  projected: LatLng;
+}
 
-  for (const node of graph.nodes.values()) {
-    const d = distSq(point, node.position);
-    if (d < bestDist) {
-      bestDist = d;
-      best = node;
+export function nearestSnap(graph: RoadGraph, point: LatLng): SnapResult {
+  let bestDist = Infinity;
+  let bestProjected: LatLng = point;
+  let bestEdge: GraphEdge | null = null;
+
+  for (const edge of graph.edges.values()) {
+    const geom = edge.geometry;
+    for (let i = 0; i < geom.length - 1; i++) {
+      const proj = projectOntoSegment(point, geom[i], geom[i + 1]);
+      const d = distSq(point, proj);
+      if (d < bestDist) {
+        bestDist = d;
+        bestProjected = proj;
+        bestEdge = edge;
+      }
     }
   }
 
-  if (!best) throw new Error("Graph has no nodes");
-  return best;
+  if (!bestEdge) throw new Error("Graph has no edges");
+
+  const fromNode = graph.nodes.get(bestEdge.from)!;
+  const toNode = graph.nodes.get(bestEdge.to)!;
+  const dFrom = distSq(bestProjected, fromNode.position);
+  const dTo = distSq(bestProjected, toNode.position);
+  const node = dFrom <= dTo ? fromNode : toNode;
+
+  return { node, edge: bestEdge, projected: bestProjected };
+}
+
+export function nearestNode(graph: RoadGraph, point: LatLng): GraphNode {
+  return nearestSnap(graph, point).node;
+}
+
+function projectOntoSegment(p: LatLng, a: LatLng, b: LatLng): LatLng {
+  const dx = b.lng - a.lng;
+  const dy = b.lat - a.lat;
+  const lenSq = dx * dx + dy * dy;
+  if (lenSq === 0) return a;
+
+  let t = ((p.lng - a.lng) * dx + (p.lat - a.lat) * dy) / lenSq;
+  t = Math.max(0, Math.min(1, t));
+
+  return { lat: a.lat + t * dy, lng: a.lng + t * dx };
 }
 
 function distSq(a: LatLng, b: LatLng): number {

@@ -33,7 +33,7 @@ def main():
     # OSMnx v2 bbox order: (west, south, east, north)
     G = ox.graph_from_bbox(
         bbox=(BBOX_WEST, BBOX_SOUTH, BBOX_EAST, BBOX_NORTH),
-        network_type="drive",
+        network_type="walk",
         simplify=True,
     )
 
@@ -54,13 +54,13 @@ def main():
         # Edge geometry: use the 'geometry' linestring if available, else straight line
         if "geometry" in data:
             coords = list(data["geometry"].coords)
-            geometry = [{"lat": round(c[1], 6), "lng": round(c[0], 6)} for c in coords]
+            geometry = [{"lat": round(c[1], 5), "lng": round(c[0], 5)} for c in coords]
         else:
             from_node = G.nodes[u]
             to_node = G.nodes[v]
             geometry = [
-                {"lat": round(from_node["y"], 6), "lng": round(from_node["x"], 6)},
-                {"lat": round(to_node["y"], 6), "lng": round(to_node["x"], 6)},
+                {"lat": round(from_node["y"], 5), "lng": round(from_node["x"], 5)},
+                {"lat": round(to_node["y"], 5), "lng": round(to_node["x"], 5)},
             ]
 
         edges[edge_id] = {
@@ -80,8 +80,8 @@ def main():
         nodes[str(node_id)] = {
             "id": str(node_id),
             "position": {
-                "lat": round(data["y"], 6),
-                "lng": round(data["x"], 6),
+                "lat": round(data["y"], 5),
+                "lng": round(data["x"], 5),
             },
             "neighbors": neighbor_edge_ids,
         }

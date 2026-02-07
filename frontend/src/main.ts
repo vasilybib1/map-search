@@ -1,6 +1,6 @@
 import "maplibre-gl/dist/maplibre-gl.css";
 import { MapController } from "./map/index.js";
-import { fetchGraph, nearestNode } from "./graph/index.js";
+import { fetchGraph, nearestSnap } from "./graph/index.js";
 import type { RoadGraph } from "./graph/index.js";
 import type { CityInfo, LatLng } from "./types/index.js";
 
@@ -34,23 +34,23 @@ async function main(): Promise<void> {
   });
 
   function handleShiftClick(point: LatLng, g: RoadGraph, mc: MapController): void {
-    const node = nearestNode(g, point);
+    const snap = nearestSnap(g, point);
 
     if (!origin) {
       origin = point;
-      mc.setMarker("origin", point, node.position);
-      console.log(`Origin set — click: (${point.lat.toFixed(5)}, ${point.lng.toFixed(5)}) → nearest node: ${node.id} at (${node.position.lat.toFixed(5)}, ${node.position.lng.toFixed(5)})`);
+      mc.setMarker("origin", point, snap.node.position);
+      console.log(`Origin set — click: (${point.lat.toFixed(5)}, ${point.lng.toFixed(5)}) → edge: ${snap.edge.id} → node: ${snap.node.id} at (${snap.node.position.lat.toFixed(5)}, ${snap.node.position.lng.toFixed(5)})`);
     } else if (!destination) {
       destination = point;
-      mc.setMarker("destination", point, node.position);
-      console.log(`Destination set — click: (${point.lat.toFixed(5)}, ${point.lng.toFixed(5)}) → nearest node: ${node.id} at (${node.position.lat.toFixed(5)}, ${node.position.lng.toFixed(5)})`);
+      mc.setMarker("destination", point, snap.node.position);
+      console.log(`Destination set — click: (${point.lat.toFixed(5)}, ${point.lng.toFixed(5)}) → edge: ${snap.edge.id} → node: ${snap.node.id} at (${snap.node.position.lat.toFixed(5)}, ${snap.node.position.lng.toFixed(5)})`);
     } else {
       origin = point;
       destination = null;
       mc.clearMarkers();
-      const newNode = nearestNode(g, point);
-      mc.setMarker("origin", point, newNode.position);
-      console.log(`Reset — new origin: click: (${point.lat.toFixed(5)}, ${point.lng.toFixed(5)}) → nearest node: ${newNode.id} at (${newNode.position.lat.toFixed(5)}, ${newNode.position.lng.toFixed(5)})`);
+      const newSnap = nearestSnap(g, point);
+      mc.setMarker("origin", point, newSnap.node.position);
+      console.log(`Reset — new origin: click: (${point.lat.toFixed(5)}, ${point.lng.toFixed(5)}) → edge: ${newSnap.edge.id} → node: ${newSnap.node.id} at (${newSnap.node.position.lat.toFixed(5)}, ${newSnap.node.position.lng.toFixed(5)})`);
     }
   }
 }
