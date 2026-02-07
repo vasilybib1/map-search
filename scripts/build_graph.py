@@ -33,8 +33,9 @@ def main():
     # OSMnx v2 bbox order: (west, south, east, north)
     G = ox.graph_from_bbox(
         bbox=(BBOX_WEST, BBOX_SOUTH, BBOX_EAST, BBOX_NORTH),
-        network_type="walk",
+        network_type="all",
         simplify=True,
+        retain_all=True,
     )
 
     print(f"Raw graph: {G.number_of_nodes()} nodes, {G.number_of_edges()} edges")
