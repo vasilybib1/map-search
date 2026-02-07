@@ -9,11 +9,14 @@ const router = Router();
 
 // GET /api/cities — list all available cities
 router.get("/cities", (_req, res) => {
-  const list = cities.map(({ id, name, center, zoom }) => ({
+  const list = cities.map(({ id, name, center, zoom, bounds, minZoom, maxZoom }) => ({
     id,
     name,
     center,
     zoom,
+    bounds,
+    minZoom,
+    maxZoom,
   }));
   res.json(list);
 });

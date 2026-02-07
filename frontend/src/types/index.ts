@@ -6,9 +6,19 @@ export interface LatLng {
   lng: number;
 }
 
+export interface Bounds {
+  south: number;
+  west: number;
+  north: number;
+  east: number;
+}
+
 export interface CityInfo {
   id: CityId;
   name: string;
   center: LatLng;
   zoom: number;
+  bounds: Bounds;
+  minZoom: number;
+  maxZoom: number;
 }

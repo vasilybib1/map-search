@@ -19,7 +19,7 @@ async function main(): Promise<void> {
   }
 
   const mapController = new MapController();
-  mapController.init(container, city.center, city.zoom, city.id);
+  mapController.init(container, city.center, city.zoom, city.id, city.bounds, city.minZoom, city.maxZoom);
 }
 
 main();
