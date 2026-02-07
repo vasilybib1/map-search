@@ -1,8 +1,12 @@
 import "maplibre-gl/dist/maplibre-gl.css";
+import "./ui/styles.css";
 import { MapController } from "./map/index.js";
 import { fetchGraph, nearestSnap } from "./graph/index.js";
-import type { RoadGraph } from "./graph/index.js";
-import type { CityInfo, LatLng } from "./types/index.js";
+import type { RoadGraph, GraphNode } from "./graph/index.js";
+import { search } from "./algorithms/index.js";
+import { Visualizer } from "./visualization/index.js";
+import { ControlPanel } from "./ui/index.js";
+import type { CityInfo, CityId, AlgorithmType, LatLng, NodeId } from "./types/index.js";
 
 async function main(): Promise<void> {
   const res = await fetch("/api/cities");
@@ -13,45 +17,179 @@ async function main(): Promise<void> {
     return;
   }
 
-  const city = cities[0];
   const container = document.getElementById("map");
   if (!container) {
     console.error("Map container not found");
     return;
   }
 
-  const mapController = new MapController();
-  mapController.init(container, city.center, city.zoom, city.id, city.bounds, city.minZoom, city.maxZoom);
+  // --- State ---
+  let currentCity = cities[0];
+  let currentAlgo: AlgorithmType = "astar";
+  let graph: RoadGraph | null = null;
+  let originNode: GraphNode | null = null;
+  let destNode: GraphNode | null = null;
+  let isRunning = false;
 
-  const graph = await fetchGraph(city.id);
+  // --- Map & Visualizer ---
+  const visualizer = new Visualizer();
+  const mapController = new MapController();
+  mapController.init(
+    container,
+    currentCity.center,
+    currentCity.zoom,
+    currentCity.id,
+    currentCity.bounds,
+    currentCity.minZoom,
+    currentCity.maxZoom,
+  );
+
+  // --- UI ---
+  const panel = new ControlPanel(
+    container,
+    {
+      cities: cities.map((c) => ({ id: c.id, name: c.name })),
+      selectedCity: currentCity.id,
+      selectedAlgo: currentAlgo,
+      canStart: false,
+      isRunning: false,
+    },
+    {
+      onCityChange: handleCityChange,
+      onAlgoChange: handleAlgoChange,
+      onStart: handleStart,
+      onReset: handleReset,
+    },
+  );
+
+  // --- Loader helpers ---
+  const loader = document.getElementById("loader")!;
+
+  function showLoader(): void {
+    loader.classList.remove("fade-out");
+    loader.style.display = "flex";
+  }
+
+  function hideLoader(): void {
+    loader.classList.add("fade-out");
+  }
+
+  // --- Wait for map + graph to load, then dismiss loader ---
+  panel.setStatus("Loading...");
+  const [loadedGraph] = await Promise.all([
+    fetchGraph(currentCity.id),
+    mapController.onLoad(),
+  ]);
+  graph = loadedGraph;
   console.log(`Graph loaded: ${graph.nodes.size} nodes, ${graph.edges.size} edges`);
 
-  let origin: LatLng | null = null;
-  let destination: LatLng | null = null;
+  hideLoader();
+  panel.setStatus("Shift+click to place origin");
+
+  // --- Handlers ---
 
   mapController.onShiftClick((point) => {
-    handleShiftClick(point, graph, mapController);
+    if (!graph || isRunning) return;
+    handlePointPlacement(point);
   });
 
-  function handleShiftClick(point: LatLng, g: RoadGraph, mc: MapController): void {
-    const snap = nearestSnap(g, point);
+  function handlePointPlacement(point: LatLng): void {
+    if (!graph) return;
+    const snap = nearestSnap(graph, point);
 
-    if (!origin) {
-      origin = point;
-      mc.setMarker("origin", point, snap.node.position);
-      console.log(`Origin set — click: (${point.lat.toFixed(5)}, ${point.lng.toFixed(5)}) → edge: ${snap.edge.id} → node: ${snap.node.id} at (${snap.node.position.lat.toFixed(5)}, ${snap.node.position.lng.toFixed(5)})`);
-    } else if (!destination) {
-      destination = point;
-      mc.setMarker("destination", point, snap.node.position);
-      console.log(`Destination set — click: (${point.lat.toFixed(5)}, ${point.lng.toFixed(5)}) → edge: ${snap.edge.id} → node: ${snap.node.id} at (${snap.node.position.lat.toFixed(5)}, ${snap.node.position.lng.toFixed(5)})`);
+    if (!originNode) {
+      originNode = snap.node;
+      mapController.setMarker("origin", point, snap.node.position);
+      panel.setStatus("Shift+click to place destination");
+      panel.update({ canStart: false });
+      console.log(`Origin: node ${snap.node.id}`);
+    } else if (!destNode) {
+      destNode = snap.node;
+      mapController.setMarker("destination", point, snap.node.position);
+      panel.setStatus("Ready — press Start");
+      panel.update({ canStart: true });
+      console.log(`Destination: node ${snap.node.id}`);
     } else {
-      origin = point;
-      destination = null;
-      mc.clearMarkers();
-      const newSnap = nearestSnap(g, point);
-      mc.setMarker("origin", point, newSnap.node.position);
-      console.log(`Reset — new origin: click: (${point.lat.toFixed(5)}, ${point.lng.toFixed(5)}) → edge: ${newSnap.edge.id} → node: ${newSnap.node.id} at (${newSnap.node.position.lat.toFixed(5)}, ${newSnap.node.position.lng.toFixed(5)})`);
+      // Reset and set new origin
+      visualizer.stop();
+      originNode = snap.node;
+      destNode = null;
+      mapController.clearMarkers();
+      mapController.clearHighlights();
+      mapController.setMarker("origin", point, snap.node.position);
+      panel.setStatus("Shift+click to place destination");
+      panel.update({ canStart: false });
+      console.log(`Reset — new origin: node ${snap.node.id}`);
     }
+  }
+
+  async function handleCityChange(cityId: CityId): Promise<void> {
+    const city = cities.find((c) => c.id === cityId);
+    if (!city) return;
+
+    visualizer.stop();
+    currentCity = city;
+    originNode = null;
+    destNode = null;
+    graph = null;
+
+    showLoader();
+    panel.setStatus("Loading...");
+    panel.update({ canStart: false, isRunning: false });
+
+    mapController.setCity(city.id, city.center, city.zoom, city.bounds, city.minZoom, city.maxZoom);
+
+    const [loadedGraph] = await Promise.all([
+      fetchGraph(city.id),
+      mapController.onStyleLoad(),
+    ]);
+    graph = loadedGraph;
+    console.log(`Graph loaded: ${graph.nodes.size} nodes, ${graph.edges.size} edges`);
+
+    hideLoader();
+    panel.setStatus("Shift+click to place origin");
+  }
+
+  function handleAlgoChange(algo: AlgorithmType): void {
+    currentAlgo = algo;
+  }
+
+  function handleStart(): void {
+    if (!graph || !originNode || !destNode || isRunning) return;
+
+    isRunning = true;
+    panel.update({ isRunning: true });
+    panel.setStatus(`Running ${currentAlgo.toUpperCase()}...`);
+    mapController.clearHighlights();
+
+    // Run algorithm (synchronous but may be heavy — use setTimeout to let UI update)
+    setTimeout(() => {
+      const result = search(graph!, originNode!.id, destNode!.id, currentAlgo);
+      console.log(`Search complete: ${result.steps.length} steps, found: ${result.found}`);
+
+      panel.setStatus(`Visualizing ${result.steps.length} steps...`);
+
+      visualizer.start(result, graph!, mapController, () => {
+        isRunning = false;
+        panel.update({ isRunning: false, canStart: true });
+        if (result.found) {
+          panel.setStatus(`Done — ${result.steps.length} steps, path: ${result.path!.length} edges`);
+        } else {
+          panel.setStatus(`Done — no path found (${result.steps.length} steps explored)`);
+        }
+      });
+    }, 50);
+  }
+
+  function handleReset(): void {
+    visualizer.stop();
+    originNode = null;
+    destNode = null;
+    isRunning = false;
+    mapController.clearMarkers();
+    mapController.clearHighlights();
+    panel.update({ canStart: false, isRunning: false });
+    panel.setStatus("Shift+click to place origin");
   }
 }
 

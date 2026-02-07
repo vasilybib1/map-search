@@ -1,0 +1,104 @@
+.control-panel {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 10;
+  background: rgba(20, 20, 24, 0.55);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 200px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  color: #e0e0e0;
+  font-size: 13px;
+}
+
+.cp-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cp-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #888;
+}
+
+.cp-group select {
+  appearance: none;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  padding: 8px 10px;
+  color: #e0e0e0;
+  font-size: 13px;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.cp-group select:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.cp-group select:focus {
+  border-color: rgba(34, 211, 238, 0.5);
+}
+
+.cp-group select option {
+  background: #1a1a1e;
+  color: #e0e0e0;
+}
+
+.cp-status {
+  font-size: 11px;
+  color: #666;
+  padding: 0 2px;
+}
+
+.cp-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.cp-btn {
+  flex: 1;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.15s, background 0.15s;
+}
+
+.cp-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.cp-btn-start {
+  background: #22d3ee;
+  color: #0a0a0a;
+}
+
+.cp-btn-start:hover:not(:disabled) {
+  background: #06b6d4;
+}
+
+.cp-btn-reset {
+  background: rgba(255, 255, 255, 0.08);
+  color: #aaa;
+}
+
+.cp-btn-reset:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.14);
+  color: #e0e0e0;
+}

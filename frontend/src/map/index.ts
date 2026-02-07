@@ -53,7 +53,6 @@ function pointFeature(pos: LatLng): GeoJSON.FeatureCollection {
 export class MapController {
   private map: maplibregl.Map | null = null;
   private shiftClickHandlers: Array<(point: LatLng) => void> = [];
-  private markersReady = false;
 
   init(
     container: HTMLElement,
@@ -85,10 +84,6 @@ export class MapController {
       boxZoom: false,
     });
 
-    this.map.on("load", () => {
-      this.addMarkerLayers();
-    });
-
     this.map.on("click", (e) => {
       if (!e.originalEvent.shiftKey) return;
       const point: LatLng = { lat: e.lngLat.lat, lng: e.lngLat.lng };
@@ -98,15 +93,13 @@ export class MapController {
     });
   }
 
-  private addMarkerLayers(): void {
-    if (!this.map) return;
+  private ensureMarkerLayer(role: MarkerRole): void {
+    if (!this.map || !this.map.isStyleLoaded()) return;
 
-    for (const role of ["origin", "destination"] as MarkerRole[]) {
-      const colors = MARKER_COLORS[role];
+    const colors = MARKER_COLORS[role];
 
+    if (!this.map.getSource(`${role}-click`)) {
       this.map.addSource(`${role}-click`, { type: "geojson", data: emptyPoint() });
-      this.map.addSource(`${role}-node`, { type: "geojson", data: emptyPoint() });
-
       this.map.addLayer({
         id: `${role}-click-layer`,
         type: "circle",
@@ -117,7 +110,10 @@ export class MapController {
           "circle-opacity": 0.5,
         },
       });
+    }
 
+    if (!this.map.getSource(`${role}-node`)) {
+      this.map.addSource(`${role}-node`, { type: "geojson", data: emptyPoint() });
       this.map.addLayer({
         id: `${role}-node-layer`,
         type: "circle",
@@ -129,12 +125,12 @@ export class MapController {
         },
       });
     }
-
-    this.markersReady = true;
   }
 
   setMarker(role: MarkerRole, clickPos: LatLng | null, nodePos: LatLng | null): void {
-    if (!this.map || !this.markersReady) return;
+    if (!this.map) return;
+
+    this.ensureMarkerLayer(role);
 
     const clickSrc = this.map.getSource(`${role}-click`) as maplibregl.GeoJSONSource | undefined;
     const nodeSrc = this.map.getSource(`${role}-node`) as maplibregl.GeoJSONSource | undefined;
@@ -148,6 +144,62 @@ export class MapController {
     this.setMarker("destination", null, null);
   }
 
+  // --- Highlight layers for visualization ---
+
+  private ensureHighlightLayers(): void {
+    if (!this.map || !this.map.isStyleLoaded()) return;
+
+    if (!this.map.getSource("exploration")) {
+      this.map.addSource("exploration", { type: "geojson", data: emptyPoint() });
+      // Insert below marker layers so markers stay on top
+      const before = this.map.getLayer("origin-click-layer") ? "origin-click-layer" : undefined;
+      this.map.addLayer({
+        id: "exploration-layer",
+        type: "line",
+        source: "exploration",
+        paint: {
+          "line-color": ["get", "color"],
+          "line-width": 2,
+          "line-opacity": 0.8,
+        },
+      }, before);
+    }
+
+    if (!this.map.getSource("path")) {
+      this.map.addSource("path", { type: "geojson", data: emptyPoint() });
+      const before = this.map.getLayer("origin-click-layer") ? "origin-click-layer" : undefined;
+      this.map.addLayer({
+        id: "path-layer",
+        type: "line",
+        source: "path",
+        paint: {
+          "line-color": ["get", "color"],
+          "line-width": 4,
+          "line-opacity": 1,
+        },
+      }, before);
+    }
+  }
+
+  setExplorationEdges(features: GeoJSON.Feature[]): void {
+    if (!this.map) return;
+    this.ensureHighlightLayers();
+    const src = this.map.getSource("exploration") as maplibregl.GeoJSONSource | undefined;
+    src?.setData({ type: "FeatureCollection", features });
+  }
+
+  setPathEdges(features: GeoJSON.Feature[]): void {
+    if (!this.map) return;
+    this.ensureHighlightLayers();
+    const src = this.map.getSource("path") as maplibregl.GeoJSONSource | undefined;
+    src?.setData({ type: "FeatureCollection", features });
+  }
+
+  clearHighlights(): void {
+    this.setExplorationEdges([]);
+    this.setPathEdges([]);
+  }
+
   onShiftClick(cb: (point: LatLng) => void): void {
     this.shiftClickHandlers.push(cb);
   }
@@ -157,7 +209,6 @@ export class MapController {
 
     const tilesUrl = `/api/cities/${cityId}/tiles`;
     const style = buildDarkStyle(tilesUrl);
-    this.markersReady = false;
     this.map.setStyle(style);
     const padded = padBounds(bounds, 0.5);
     this.map.setMinZoom(minZoom);
@@ -168,9 +219,21 @@ export class MapController {
     ]);
     this.map.setCenter([center.lng, center.lat]);
     this.map.setZoom(zoom);
+  }
 
-    this.map.once("style.load", () => {
-      this.addMarkerLayers();
+  onLoad(): Promise<void> {
+    return new Promise((resolve) => {
+      if (!this.map) return resolve();
+      if (this.map.loaded()) return resolve();
+      this.map.once("load", () => resolve());
+    });
+  }
+
+  onStyleLoad(): Promise<void> {
+    return new Promise((resolve) => {
+      if (!this.map) return resolve();
+      if (this.map.isStyleLoaded()) return resolve();
+      this.map.once("idle", () => resolve());
     });
   }
 

@@ -1,5 +1,5 @@
 import type { StyleSpecification } from "maplibre-gl";
-import { layers, DARK } from "@protomaps/basemaps";
+import { layers, BLACK } from "@protomaps/basemaps";
 
 const SOURCE_NAME = "protomaps";
 
@@ -16,6 +16,6 @@ export function buildDarkStyle(tilesUrl: string): StyleSpecification {
           '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
       },
     },
-    layers: layers(SOURCE_NAME, DARK),
+    layers: layers(SOURCE_NAME, BLACK),
   };
 }

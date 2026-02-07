@@ -22,6 +22,17 @@ export const cities: CityConfig[] = [
     graphFile: "vancouver-graph.json",
     tilesFile: "vancouver.pmtiles",
   },
+  {
+    id: "toronto",
+    name: "Toronto",
+    center: { lat: 43.65, lng: -79.38 },
+    zoom: 11,
+    bounds: { south: 43.50, west: -79.75, north: 43.90, east: -79.00 },
+    minZoom: 11,
+    maxZoom: 20,
+    graphFile: "toronto-graph.json",
+    tilesFile: "toronto.pmtiles",
+  },
 ];
 
 export function getCityById(id: string): CityConfig | undefined {
