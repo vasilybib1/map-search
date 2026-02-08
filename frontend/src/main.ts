@@ -6,7 +6,7 @@ import type { RoadGraph, GraphNode } from "./graph/index.js";
 import { search } from "./algorithms/index.js";
 import { Visualizer } from "./visualization/index.js";
 import { ControlPanel } from "./ui/index.js";
-import type { CityInfo, CityId, AlgorithmType, LatLng, NodeId } from "./types/index.js";
+import type { CityInfo, CityId, AlgorithmType, LatLng } from "./types/index.js";
 
 async function main(): Promise<void> {
   const res = await fetch("/api/cities");
@@ -81,7 +81,6 @@ async function main(): Promise<void> {
     mapController.onLoad(),
   ]);
   graph = loadedGraph;
-  console.log(`Graph loaded: ${graph.nodes.size} nodes, ${graph.edges.size} edges`);
 
   hideLoader();
   panel.setStatus("Shift+click to place origin");
@@ -102,13 +101,11 @@ async function main(): Promise<void> {
       mapController.setMarker("origin", point, snap.node.position);
       panel.setStatus("Shift+click to place destination");
       panel.update({ canStart: false });
-      console.log(`Origin: node ${snap.node.id}`);
     } else if (!destNode) {
       destNode = snap.node;
       mapController.setMarker("destination", point, snap.node.position);
       panel.setStatus("Ready — press Start");
       panel.update({ canStart: true });
-      console.log(`Destination: node ${snap.node.id}`);
     } else {
       // Reset and set new origin
       visualizer.stop();
@@ -119,7 +116,6 @@ async function main(): Promise<void> {
       mapController.setMarker("origin", point, snap.node.position);
       panel.setStatus("Shift+click to place destination");
       panel.update({ canStart: false });
-      console.log(`Reset — new origin: node ${snap.node.id}`);
     }
   }
 
@@ -144,7 +140,6 @@ async function main(): Promise<void> {
       mapController.onStyleLoad(),
     ]);
     graph = loadedGraph;
-    console.log(`Graph loaded: ${graph.nodes.size} nodes, ${graph.edges.size} edges`);
 
     hideLoader();
     panel.setStatus("Shift+click to place origin");
@@ -165,7 +160,6 @@ async function main(): Promise<void> {
     // Run algorithm (synchronous but may be heavy — use setTimeout to let UI update)
     setTimeout(() => {
       const result = search(graph!, originNode!.id, destNode!.id, currentAlgo);
-      console.log(`Search complete: ${result.steps.length} steps, found: ${result.found}`);
 
       panel.setStatus(`Visualizing ${result.steps.length} steps...`);
 

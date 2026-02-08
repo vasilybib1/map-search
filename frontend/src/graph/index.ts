@@ -66,10 +66,6 @@ export function nearestSnap(graph: RoadGraph, point: LatLng): SnapResult {
   return { node, edge: bestEdge, projected: bestProjected };
 }
 
-export function nearestNode(graph: RoadGraph, point: LatLng): GraphNode {
-  return nearestSnap(graph, point).node;
-}
-
 function projectOntoSegment(p: LatLng, a: LatLng, b: LatLng): LatLng {
   const dx = b.lng - a.lng;
   const dy = b.lat - a.lat;

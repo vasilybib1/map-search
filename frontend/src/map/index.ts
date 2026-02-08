@@ -33,7 +33,7 @@ const MARKER_COLORS: Record<MarkerRole, { click: string; node: string }> = {
 const CLICK_RADIUS = 8;
 const NODE_RADIUS = 6;
 
-function emptyPoint(): GeoJSON.FeatureCollection {
+function emptyCollection(): GeoJSON.FeatureCollection {
   return { type: "FeatureCollection", features: [] };
 }
 
@@ -100,7 +100,7 @@ export class MapController {
     const colors = MARKER_COLORS[role];
 
     if (!this.map.getSource(`${role}-click`)) {
-      this.map.addSource(`${role}-click`, { type: "geojson", data: emptyPoint() });
+      this.map.addSource(`${role}-click`, { type: "geojson", data: emptyCollection() });
       this.map.addLayer({
         id: `${role}-click-layer`,
         type: "circle",
@@ -114,7 +114,7 @@ export class MapController {
     }
 
     if (!this.map.getSource(`${role}-node`)) {
-      this.map.addSource(`${role}-node`, { type: "geojson", data: emptyPoint() });
+      this.map.addSource(`${role}-node`, { type: "geojson", data: emptyCollection() });
       this.map.addLayer({
         id: `${role}-node-layer`,
         type: "circle",
@@ -136,8 +136,8 @@ export class MapController {
     const clickSrc = this.map.getSource(`${role}-click`) as maplibregl.GeoJSONSource | undefined;
     const nodeSrc = this.map.getSource(`${role}-node`) as maplibregl.GeoJSONSource | undefined;
 
-    clickSrc?.setData(clickPos ? pointFeature(clickPos) : emptyPoint());
-    nodeSrc?.setData(nodePos ? pointFeature(nodePos) : emptyPoint());
+    clickSrc?.setData(clickPos ? pointFeature(clickPos) : emptyCollection());
+    nodeSrc?.setData(nodePos ? pointFeature(nodePos) : emptyCollection());
   }
 
   clearMarkers(): void {
@@ -189,7 +189,7 @@ export class MapController {
       type: "line",
       source: "path",
       paint: {
-        "line-color": ["get", "color"],
+        "line-color": "#ffffff",
         "line-width": 4,
         "line-opacity": 1,
       },
@@ -246,13 +246,4 @@ export class MapController {
     });
   }
 
-  getMap(): maplibregl.Map | null {
-    return this.map;
-  }
-
-  destroy(): void {
-    this.map?.remove();
-    this.map = null;
-    this.shiftClickHandlers = [];
-  }
 }

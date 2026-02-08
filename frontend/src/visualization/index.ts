@@ -1,23 +1,20 @@
 import type { RoadGraph, GraphEdge } from "../graph/index.js";
 import type { SearchResult } from "../algorithms/index.js";
-import type { EdgeId } from "../types/index.js";
 import type { MapController } from "../map/index.js";
 
 const EDGES_PER_FRAME = 500;
 const BATCH_SIZE = 3000;
-const EXPLORATION_COLOR = "hsl(0, 0%, 45%)";
 
-function edgeToFeature(edge: GraphEdge, color: string): GeoJSON.Feature {
+function edgeToLineFeature(edge: GraphEdge): GeoJSON.Feature {
   return {
     type: "Feature",
     geometry: {
       type: "LineString",
       coordinates: edge.geometry.map((p) => [p.lng, p.lat]),
     },
-    properties: { color },
+    properties: {},
   };
 }
-
 
 export class Visualizer {
   private animationId: number | null = null;
@@ -32,19 +29,18 @@ export class Visualizer {
 
     const { steps, path } = result;
 
-    // Pre-compute all unique edge features with colors
+    // Pre-compute all unique edge features
     const allFeatures: GeoJSON.Feature[] = [];
-    const seen = new Set<EdgeId>();
+    const seen = new Set<string>();
 
-    for (let i = 0; i < steps.length; i++) {
-      const step = steps[i];
+    for (const step of steps) {
       if (seen.has(step.edgeId)) continue;
       seen.add(step.edgeId);
 
       const edge = graph.edges.get(step.edgeId);
       if (!edge) continue;
 
-      allFeatures.push(edgeToFeature(edge, EXPLORATION_COLOR));
+      allFeatures.push(edgeToLineFeature(edge));
     }
 
     let cursor = 0;
@@ -57,7 +53,6 @@ export class Visualizer {
       }
       cursor = end;
 
-      // Flush batch when it hits threshold or we're done
       if (batch.length >= BATCH_SIZE || cursor >= allFeatures.length) {
         map.addExplorationBatch(batch);
         batch = [];
@@ -66,13 +61,12 @@ export class Visualizer {
       if (cursor < allFeatures.length) {
         this.animationId = requestAnimationFrame(tick);
       } else {
-        // Delay path by one frame so MapLibre finishes the last exploration batch
         this.animationId = requestAnimationFrame(() => {
           if (path && path.length > 0) {
             const pathFeatures = path
               .map((eid) => graph.edges.get(eid))
               .filter((e): e is GraphEdge => e != null)
-              .map((e) => edgeToFeature(e, "#ffffff"));
+              .map((e) => edgeToLineFeature(e));
             map.setPathEdges(pathFeatures);
           }
           this.animationId = null;
