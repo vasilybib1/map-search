@@ -5,6 +5,6 @@ A small project I decided to write that took inspiration from learning search al
 
 ## Demo Video 
 
-[vancouver.mp4](./vancouver.mp4)
+![vancouver](./vancouver.gif)
 
-[toronto.mp4](./toronto.mp4)
+![toronto](./toronto.gif)
